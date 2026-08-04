@@ -837,6 +837,29 @@ its own `yes`-loop and `dd | shasum` tests on the same machine, not a test I sta
 the load less controlled but the observation more relevant — it is an ordinary heavy workload,
 not a synthetic one, and the sampling was mine.)*
 
+**Corroborated beyond this machine.** Level 2 under sustained load was independently observed on
+an **M2 Air** and an **M4 Max** (MacThrottle's author), so "Heavy is normal under load" is not an
+artefact of this one M4 Air — it holds across fanless *and* fan-cooled Apple silicon.
+
+### ⚠️ Do NOT substitute `NSProcessInfo.thermalState` — it cannot see the difference
+
+The obvious CLT-free alternative is to read `NSProcessInfo.thermalState` via `osascript` JXA.
+**It is strictly worse, and in a way that destroys exactly the distinction this check needs.**
+The mapping is **lossy**: `Moderate` (1) *and* `Heavy` (2) **both collapse to `fair` (1)**.
+
+This was measured directly — `notifyutil` reporting **2** while `thermalState` reported **1** —
+and reproduced over 25 samples plus independently by MacThrottle's author on M2 Air and M4 Max.
+
+**So `NSProcessInfo.thermalState` cannot tell "warm" from "actively throttling"**, which is the
+entire question. Worse, it **fails silently as `nominal`** on unsupported systems — a false pass,
+the most dangerous failure mode for a buying guide.
+
+**`notifyutil -g` is the primary and preferred reading.** Treat `osascript` only as a
+last-resort fallback, knowing it cannot resolve 1 from 2.
+
+*(Note on the header: the `#if` in `OSThermalNotification.h` is on `TARGET_OS_OSX`, i.e.
+**macOS vs iOS** — not Intel vs Apple silicon. The 0/10/20/… scale never applies on a Mac.)*
+
 **The corrected reading of the scale for buying purposes:**
 
 | level | meaning under sustained load |
@@ -902,8 +925,27 @@ It is a tight integer/`memcpy` loop with no vector, FP or memory-subsystem work.
 cores without exercising the parts of the SoC that produce peak power draw. It is the *cheapest*
 way to make a core busy, which is not the same as the *hottest*.
 
-**Defect 3 — 300 seconds is asserted, not derived.** My own 25-second run is too short and too
-contaminated to settle it.
+**Defect 3 — 300 seconds is asserted, not derived, and looks roughly twice as long as needed.**
+
+A second measurement pass on the **same M4 Air**, run to characterise the throttle curve rather
+than to load the machine, gives the first actual answer to "is 5 minutes right":
+
+| | |
+|---|---|
+| throttle **onset** | **~90–160 s** |
+| curve **flat** after | **~180 s** |
+| sustained single-thread loss at plateau | **~2.1×** |
+
+**So ~3 minutes captures essentially the whole curve, and the last two minutes of the README's
+five buy almost nothing.** Under the map's rule that a by-hand minute must justify itself, that
+is a **40% cut in the only expensive step in the whole procedure** — the single biggest
+efficiency finding here.
+
+⚠️ **One noisy machine, one chip, n=1.** This is the strongest evidence available to me, not a
+settled number, and it is an **M4 Air specifically** — the *thermally weakest* configuration in
+the supported range. A passively-cooled M1 Air may plateau sooner; a fan-cooled M4 Max Pro will
+hold turbo far longer and may not plateau within 3 minutes at all. **Before #16 fixes a
+duration, this wants one clean run on a Pro.**
 
 **⚠️ The P-core / E-core question is NOT resolved, and I want to be explicit about that.** A
 reasonable worry is that shell-launched background jobs inherit a low QoS and get parked on
@@ -1098,10 +1140,57 @@ $ log show --start <boot-60s> --end <boot+240s> \
 elapsed: 93s         ← and returned nothing
 ```
 
-Two separate problems: **336 seconds for a 7-day window, and 93 seconds even for a 5-minute
-window** — the cost is scanning the archive, not the window size. That alone exceeds the entire
-budget of a shop visit. And on macOS 26.5.2 the query **returned no "Previous shutdown cause"
-line at all** at default log level. `log show` should not appear in `check.sh`.
+**336 seconds for a 7-day window, and 93 seconds even for a 5-minute window.** And on macOS
+26.5.2 the query **returned no "Previous shutdown cause" line at all** at default log level.
+
+**⚠️ Correction to my own first diagnosis.** I originally concluded the cost was "scanning the
+archive regardless of window size". That is **wrong**, and the real cause is more useful:
+**`eventMessage CONTAINS` is an unindexed full-text scan and dominates the runtime.** Both of my
+slow timings used it. Unfiltered or `subsystem`-predicated queries over comparable windows
+return in **~2–4 seconds**. So the rule for anyone writing log queries later is:
+**predicate on `subsystem`, never on `eventMessage`.**
+
+This does **not** rescue `log show` for this project, for three independent reasons — and the
+third is the decisive one:
+
+1. **Retention is only ~10 days** (§5.3), so `--last 30d` searches data that does not exist.
+2. **`log show` is admin-gated.** `/var/db/diagnostics` is `drwxr-x--- root:admin` with **no
+   world bits**, and `log show` reads those files directly — so a **standard (non-admin) user
+   cannot use it at all.** It worked in my testing only because this account is in `admin`.
+   (`log stream` is different: it reads live events rather than the store, and *is*
+   unprivileged.)
+3. **The line is simply gone on Apple silicon.** The zero result was reproduced independently on
+   a machine that had genuinely rebooted that day (verified via `kern.boottime`), with the kernel
+   demonstrably logging normally in that window. Corroborated by Howard Oakley — *"I've not been
+   successful yet on an Apple silicon Mac"* — and by multiple M1 reports.
+
+**`log show` should not appear in `check.sh`.**
+
+### The shutdown-cause codes are real — and it does not help
+
+I was initially inclined to write the shutdown-cause code list off as folklore. That was too
+harsh: **Apple publishes a partial list in its own open-source PowerManagement project**
+(`common/CommonLib.c`, apple-oss-distributions on GitHub — the old `opensource.apple.com` URL now
+404s):
+
+```
+ 0  Battery disconnected          1  Normal warm reset
+ 2  Power supply disconnected     3  Power button pressed >4 sec
+ 5  Software initiated shutdown   7  Normal shutdown by SOC
+-60  Battery fully drained      -81  Thermal shutdown for overtemp
+```
+
+So **−81 = thermal is Apple-documented**, as are 5 (clean) and 3 (hard power-off). Apple's own
+code comment makes clear this is a deliberate subset, not an enumeration. Useful rule of thumb
+(Oakley): **negative = hardware/SMC, positive = software.**
+
+The **wider** negative list in circulation — watchdog −61/−62, overcurrent −78/−79/−102, CPU
+temp −95 — is **reverse-engineered** (George Garside), medium confidence. **−128 is genuinely
+unknown**, and **−64 is contested** (Oakley: kernel panic; Garside: unknown).
+
+**None of it is actionable here, because the log line that would carry the code is absent on
+Apple silicon.** Recorded so the next person does not spend the same afternoon rediscovering
+that a well-documented code list has nothing to decode.
 
 **`pmset -g log` is fast but carries no thermal data:**
 
@@ -1235,9 +1324,16 @@ GeneratedUID: ABCDEFAB-CDEF-ABCD-EFAB-CDEF00000050      ← identical
 ```
 
 **`_analyticsusers` nests the entire `admin` group.** So: **any admin user reads it with no
-sudo; a standard (non-admin) user cannot.** Same for `/var/db/diagnostics` (root:admin) — which
-is why `log show` works without sudo **only for admin accounts**. Say *"admin, no sudo"*, not
-*"world-readable"*.
+sudo; a standard (non-admin) user cannot.**
+
+`/var/db/diagnostics` is `drwxr-x--- root:admin` with **no world bits** — and `log show` reads
+those files *directly*, which is why it works without sudo **only for admin accounts**.
+`log stream` is the exception: it consumes live events rather than the on-disk store, so it is
+genuinely unprivileged.
+
+**Say *"admin, no sudo"*, not *"world-readable"*.** And since `check.sh` is meant to run on
+whatever account the seller hands over, every one of these reads needs a graceful "could not
+look" path that is distinguishable from "looked and found nothing".
 
 ---
 
@@ -1261,9 +1357,12 @@ is why `log show` works without sudo **only for admin accounts**. Say *"admin, n
 
 **Load test — the only part that costs the buyer minutes:**
 
+- **~3 minutes, not 5** — throttle onset is ~90–160 s and the curve is flat by ~180 s on an M4
+  Air (§4.3), so the last two minutes buy almost nothing. Verify on a Pro before fixing it;
 - spawn `$(sysctl -n hw.logicalcpu)` × `dd if=/dev/zero bs=1m count=… | shasum -a 256`,
   **never** a hardcoded 8, and **never** anything that writes to the seller's disk;
-- poll `notifyutil -g com.apple.system.thermalpressurelevel` every 15 s (8 ms each, free);
+- poll `notifyutil -g com.apple.system.thermalpressurelevel` every 15 s (8 ms each, free) —
+  **not** `NSProcessInfo.thermalState`, which collapses Moderate and Heavy together (§4.2);
 - run the fixed probe `/usr/bin/time -p sh -c 'yes | head -n 50000000 > /dev/null'` **before and
   after** and compare the **`user`** field, not wall time (§4.4);
 - **on an Air, tell the buyer silence is correct and the chassis will get hot**; the pass
@@ -1272,8 +1371,12 @@ is why `log show` works without sudo **only for admin accounts**. Say *"admin, n
 **Explicitly recommended *against* shipping, with reasons, so it is not re-litigated:**
 
 - `pmset -g therm` — records nothing on Apple silicon (§4.1)
-- `log show` — 336 s for 7 days, 93 s for a 5-minute window, ~10-day retention, and returned
-  nothing anyway (§4.6, §5.3)
+- `log show` — **admin-only** (`/var/db/diagnostics` is `root:admin`, no world bits), ~10-day
+  retention, and the "Previous shutdown cause" line is **absent on Apple silicon** anyway
+  (§4.6, §5.3). *Its slowness was my own predicate's fault — `eventMessage CONTAINS` is
+  unindexed — but the three reasons above stand independently.*
+- `NSProcessInfo.thermalState` via `osascript` — collapses Moderate and Heavy into one value and
+  fails silently as `nominal` on unsupported systems (§4.2)
 - `openssl speed` — hardware-accelerated, barely heats the SoC, 15 s fixed runtime, and Apple's
   LibreSSL has no `-seconds` (§4.4)
 - `swift` / `cc` / `python3` — the xcode-select shim; prompts for a network install (§1.4)
