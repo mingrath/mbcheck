@@ -145,6 +145,15 @@ The correct framing:
 | `Enabled` | **Normal.** Expected. No signal. | **🛑 Sign-out did not take.** |
 | `Disabled` | Unusual — ask why. Either already signed out (fine) or security policy downgraded (check `csrutil`). | **Correct.** This is the state you pay for. |
 
+⚠️ **Confidence note, stated plainly.** Only the top-left cell of that table was observed first-hand: the test
+machine has Find My on and reads `Enabled`. The other three cells are **inference from Apple's documented
+mechanism**, not observation — the dedicated Activation Lock investigation for this ticket did not report back,
+so this section was assembled from the other three investigations plus first-hand command output. The
+inference is strong (Apple states Activation Lock is turned on by Find My, and the field is named for it), but
+**nobody has watched this field flip on a real machine as part of this research.** The transition is cheap to
+verify and should be, before the guide leans on it: sign out of iCloud on any Mac and re-read the field. See
+[Unpinned #20](#unpinned--could-not-establish).
+
 ### Two flavours, and the organisation one is worse
 
 <https://support.apple.com/guide/deployment/activation-lock-depf4ab94ef1/web> (no date in body):
@@ -429,6 +438,15 @@ Mac**".
 
 **Every M1–M5 MacBook runs macOS 14 or later today. So an ADE-registered Mac cannot be skipped past durably:
 worst case unskippable, best case eight hours.**
+
+**Independently corroborated in Apple's Thai-language documentation.** Sibling research on
+[#7](https://github.com/mingrath/mbcheck/issues/7) surfaced Apple's Thai macOS Sonoma enterprise notes stating
+that ADE **"สามารถบังคับใช้ได้หลังจากผู้ช่วยตั้งค่า"** — *enrollment can be enforced after Setup Assistant*.
+That is the same claim as the English "Enforce Automated Device Enrollment" text above, reached from a
+different Apple page in a different language, and it settles the question #7 left open: **enrollment is not a
+one-shot gate at first boot. A Mac that got past Setup Assistant clean can still be walled off afterwards.**
+This is the mechanism behind false-negative state 1 below — the organisation assigns the serial at any time
+after the sale, and enforcement does the rest.
 
 Apple never publishes the pane's on-screen wording. Anything quoting it verbatim is vendor or forum material.
 
@@ -787,6 +805,22 @@ it came out of:
 MacBook Air model years 2020, 2022–2026 and MacBook Pro 2020–2026
 (<https://support.apple.com/en-us/123128>, Published 2026-05-11).
 
+⚠️ **The part list is contested and must be reconciled before the guide prints one.** Sibling research on
+[#5](https://github.com/mingrath/mbcheck/issues/5) independently reached this lock under Apple's
+**`Finish Repair`** label and reports the covered parts as **battery, display, front camera and Touch ID
+sensor** — overlapping this note's list on display and Touch ID, but adding battery and camera while omitting
+logic board, lid angle sensor and top case. **This note did not verify #5's list and does not merge the two.**
+The discrepancy matters commercially: [#13](https://github.com/mingrath/mbcheck/issues/13) established that a
+swapped **battery** is invisible to Parts & Service, which is incompatible with a battery being an
+Activation-Lockable part. One of the three findings is wrong, or Apple maintains two different lists
+(*calibratable* vs *reportable* vs *lockable*) — exactly the ambiguity #13 already flagged as unresolved.
+*To pin: Apple's own table for `Finish Repair` specifically, read side by side with 123128 and 123123, or
+first-hand observation on a Tahoe 26 Mac with a third-party part.*
+
+Both findings agree on the part that actually matters for the buyer's decision, and that agreement is safe to
+print: **a used part linked to a previous owner's Apple Account is Activation-Locked, Apple will not remove it,
+and the part is then ineligible for warranty service and the machine ineligible for trade-in.**
+
 **How it presents:** a persistent "Finish Repair" notification and an entry under System Settings → General →
 About → **Parts & Service**. The Mac boots and works — but the part "might not perform as expected or have
 features that are critical to privacy, security, or safety."
@@ -1095,6 +1129,10 @@ Listed so the guide author knows not to reach for something that does not exist.
 | 17 | **Exactly which fields `checkcoverage.apple.com` returns for a Mac serial today** | CAPTCHA-gated; not exercised with a real serial | Running a known serial through it by hand |
 | 18 | **Any Thai police or government serial lookup for stolen electronics** | A targeted Thai-language search of the RTP, thaipoliceonline, CRD and CITC surfaced none | A direct enquiry to สำนักงานตำรวจแห่งชาติ |
 | 19 | **Publication dates for Apple Platform Deployment and ABM/ASM guide pages** | None carry a date in the body | Nothing — **2026-08-04 is the only date of record** for those pages |
+| 20 | **First-hand observation of `Activation Lock Status` in any state other than `Enabled`** | The dedicated Activation Lock investigation did not report back; §1 was assembled from the other three plus command output from one machine, which has Find My on | Sign out of iCloud on any Apple-silicon Mac, re-run `system_profiler SPHardwareDataType`, record the reading. **Ten minutes of work and it de-risks the guide's single most-used check** |
+| 21 | **The exact on-screen wording of the Activation Lock window** | Apple describes it only as "an Activation Lock window that asks for someone else's Apple Account" | A screenshot from a locked Mac. Same gap as the Remote Management pane (#6) and the Recovery Lock prompt (#5) — **Apple documents none of the three screens a buyer must actually recognise** |
+| 22 | **Whether `Activation Lock Status` distinguishes personal from organisation-linked Activation Lock** | The field is a single enabled/disabled string; nothing observed suggests it carries the flavour, and no Apple source describes one | Observation on an ABM-enrolled Mac. Matters because the two flavours have opposite remedies (§1) |
+| 23 | **Mark As Lost / Lost Mode on a Mac** — exact behaviour, persistence, and presentation | Not reached. Apple documents Managed Lost Mode as iPhone/iPad only, and a Find My remote lock as presenting a PIN, but the consumer "Mark As Lost" path on a Mac was not investigated | Apple's Find My user guide for Mac, plus first-hand observation |
 
 ---
 
@@ -1105,6 +1143,13 @@ Recovery Lock, firmware password, Startup Security, FileVault, Screen Time and l
 carrier, stolen-device databases and everything the ticket's list missed — each instructed to weight Apple
 Support, Apple Platform Deployment, Apple Platform Security and Apple developer documentation above all else,
 to label forum, video and marketplace material as **claims**, and never to invent a fact to fill a gap.
+
+**Three of the four reported. The Activation Lock and Find My investigation did not return**, so
+[§1](#1-activation-lock) was assembled from the other three — which covered Activation Lock substantially, as
+it is load-bearing for both the MDM and the Recovery Lock questions — plus first-hand command output. §1 is
+well-sourced on mechanism, requirements, EACS and DFU behaviour, the two flavours, and Apple's proof-of-purchase
+bar. It is **thin on observation**: see Unpinned [#20](#unpinned--could-not-establish)–[#23](#unpinned--could-not-establish),
+which are cheap to close and should be closed before `check.sh` ships.
 
 **Tooling:** AgentKey MCP was the primary search and fetch tool throughout (`Serper/search`,
 `Brave/getWebSearch`, `Firecrawl/scrape`), with `wigolo fetch`/`search` as a secondary fetcher where AgentKey
