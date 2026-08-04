@@ -897,8 +897,24 @@ It is a tight integer/`memcpy` loop with no vector, FP or memory-subsystem work.
 cores without exercising the parts of the SoC that produce peak power draw. It is the *cheapest*
 way to make a core busy, which is not the same as the *hottest*.
 
-**Defect 3 — 300 seconds is asserted, not derived.** See §5 for measured throttle-onset data;
-my own 25-second run is too short and too contaminated to settle it.
+**Defect 3 — 300 seconds is asserted, not derived.** My own 25-second run is too short and too
+contaminated to settle it.
+
+**⚠️ The P-core / E-core question is NOT resolved, and I want to be explicit about that.** A
+reasonable worry is that shell-launched background jobs inherit a low QoS and get parked on
+efficiency cores, in which case the load test would barely heat the P-cores and prove little.
+I could not settle it:
+
+- **Per-core residency needs `powermetrics`, which is root-only** — so the direct observation is
+  unavailable under this project's constraints, permanently.
+- `/usr/sbin/taskpolicy` **is** a real base-OS binary (link count 1, not the shim) and **runs
+  unprivileged** — but its `-c <clamp>` / `-b` / `-t` options **lower** QoS. There is no
+  unprivileged way to *raise* a process above the shell's default.
+
+What can be said: a Terminal-launched job inherits the shell's default QoS, not a background
+one, so it should be eligible for P-cores — but **"should be" is inference, not measurement.**
+This is the weakest link in area 4 and it argues for using a load that is unambiguously heavy
+(§4.4) rather than relying on `yes` being scheduled well.
 
 **What the 25-second run does prove** (10 × `yes`, `hw.logicalcpu` = 10, on the fanless M4 Air,
 machine already at `loadavg` 9.98 from concurrent agents):
