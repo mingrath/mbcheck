@@ -40,7 +40,7 @@ itself a finding.
 | Runs as | you, the ordinary logged-in user |
 | Asks for a password | **never** — no `sudo`, anywhere |
 | Installs anything | **no** |
-| Writes to the machine | one file: the report, in the home folder, which it tells you to delete |
+| Writes to the machine | one file it keeps: the report, in the home folder, which it tells you to delete. Plus a scratch file under `/tmp` that it deletes on the way out, including if you interrupt it |
 | Network calls | **none**, unless you pass `--stolen-check` |
 | Leaves anything running | no — interrupt it at any point and it stops its own load test |
 
@@ -448,8 +448,10 @@ For a seller who will not let you fetch from the internet. This block is generat
 # It reads every software fact for free, runs a load test behind the physical
 # checks, prompts you for the things no script can do, and prints one report.
 #
-# It takes no sudo, installs nothing, writes nothing except the report in your
-# home directory, and makes no network call unless you pass --stolen-check.
+# It takes no sudo, installs nothing, and makes no network call unless you pass
+# --stolen-check. It keeps exactly one file — the report, in your home
+# directory — plus a scratch file under /tmp that it deletes when it exits,
+# including when you interrupt it.
 #
 # Scope: MacBook Air and MacBook Pro, M1-M5. Not Intel, not desktops.
 #

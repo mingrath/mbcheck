@@ -11,8 +11,10 @@
 # It reads every software fact for free, runs a load test behind the physical
 # checks, prompts you for the things no script can do, and prints one report.
 #
-# It takes no sudo, installs nothing, writes nothing except the report in your
-# home directory, and makes no network call unless you pass --stolen-check.
+# It takes no sudo, installs nothing, and makes no network call unless you pass
+# --stolen-check. It keeps exactly one file — the report, in your home
+# directory — plus a scratch file under /tmp that it deletes when it exits,
+# including when you interrupt it.
 #
 # Scope: MacBook Air and MacBook Pro, M1-M5. Not Intel, not desktops.
 #
