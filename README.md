@@ -27,6 +27,29 @@ That is the whole procedure. About 12–15 minutes.
 
 **Bring your own internet.** Tether from your phone rather than relying on the shop's Wi-Fi.
 
+### Before you go — do these two things once
+
+**1. Rehearse it on your own Mac.** Three minutes:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/mingrath/mbcheck/main/check.sh) --rehearse
+```
+
+Identical to a real run except the load test is 20 seconds instead of 180. Do it once so you
+know what the questions look like. Fumbling with an unfamiliar tool while a seller watches is
+how checks get skipped — and a skipped check reads exactly like a passed one.
+
+**2. Keep an offline copy.** Shop Wi-Fi fails, tethering drops, and some sellers will not let
+you fetch a script from the internet at all. Save one now:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mingrath/mbcheck/main/check.sh -o ~/mbcheck.sh
+```
+
+AirDrop `~/mbcheck.sh` to your phone, or put it on a USB stick. At the shop you can then run
+it from the stick, or open it on your phone and paste it — and either way the seller can read
+the whole thing before it runs, which is the reasonable thing for them to want.
+
 **If the seller will not let you fetch a script from the internet** — a reasonable thing for
 them to refuse — open [the copy at the bottom of this file](#the-whole-script-to-paste-by-hand),
 copy it, and paste it into Terminal instead. Same script, second delivery route. Under this
@@ -514,15 +537,16 @@ CURL=/usr/bin/curl
 VERSION="1.0"
 PRICES_AS_OF="2026-08-04"
 
-# Testing hooks. Neither is needed at a shop.
 LOAD_SECONDS="${MBCHECK_LOAD_SECONDS:-180}"
 LOAD_CAP=300
 STOLEN_CHECK=no
 BATTERY_FLOOR=20
+REHEARSAL=no
 
 for arg in "$@"; do
     case "$arg" in
         --stolen-check) STOLEN_CHECK=yes ;;
+        --rehearse) REHEARSAL=yes; LOAD_SECONDS=20 ;;
         --version) echo "mbcheck $VERSION"; exit 0 ;;
         -h|--help)
             /bin/cat <<'USAGE'
@@ -530,11 +554,20 @@ mbcheck — pre-purchase inspection for second-hand Apple-silicon MacBooks
 
   bash <(curl -fsSL https://raw.githubusercontent.com/mingrath/mbcheck/main/check.sh)
 
+  --rehearse       Practice run on your OWN Mac before you go. Identical to a
+                   real run except the load test is 20 seconds instead of 180,
+                   so the whole thing takes about three minutes. Do this once.
+                   Fumbling with an unfamiliar tool while a seller watches is
+                   how checks get skipped, and a skipped check reads exactly
+                   like a passed one.
   --stolen-check   Also query stolenregister.com with this machine's serial.
                    OFF by default: it sends a stranger's serial to a third
                    party from the stranger's own machine. Prefer running the
                    printed URL on your own phone instead.
   --version        Print version and exit.
+
+The report is written to ~/mbcheck-<serial>-<date>.md. Nothing else is left
+behind, no password is ever asked for, and nothing is installed.
 USAGE
             exit 0 ;;
     esac
@@ -714,9 +747,19 @@ pause_for() {  # message
 say ""
 say "  mbcheck $VERSION — pre-purchase inspection"
 say "  Read-only. No sudo. Nothing is installed. Nothing is changed."
+if [ "$REHEARSAL" = yes ]; then
+    say ""
+    say "  *** REHEARSAL — the load test is 20s instead of 180s. ***"
+    say "  *** Everything else is real. Do not use this at a shop. ***"
+fi
 say ""
-say "  This run will take roughly 12-15 minutes. Nothing you find stops the"
-say "  run: it grades everything and you decide at the end."
+if [ "$REHEARSAL" = yes ]; then
+    say "  About three minutes. Nothing you find stops the run: it grades"
+    say "  everything and you decide at the end."
+else
+    say "  This run will take roughly 12-15 minutes. Nothing you find stops the"
+    say "  run: it grades everything and you decide at the end."
+fi
 say ""
 
 head2 "Checking that the machine can be trusted to tell the truth"
@@ -1699,6 +1742,7 @@ printf '%s · %s · %s  \n' "$CHIP" "$CORES" "$MEMORY"
 printf 'Serial `%s` · model number `%s` · region `%s`  \n' \
        "${SERIAL:-unknown}" "${MODEL_NUMBER:-unknown}" "${REGION_INFO:-unknown}"
 printf 'macOS %s · inspected %s · mbcheck %s\n\n' "${OS_VER:-unknown}" "$($DATE +%Y-%m-%d)" "$VERSION"
+[ "$REHEARSAL" = yes ] && printf '> **REHEARSAL RUN — not a real inspection.** The load test ran for 20 seconds\n> instead of 180, so the thermal verdict below means nothing. Do not negotiate\n> with this report.\n\n'
 printf 'Grade %s at best (BKK APPLE rubric, TH) — %s; cosmetic condition, which you can see and I can not, can only lower this.\n\n' "$CEIL" "$CEIL_WHY"
 printf -- '---\n\n'
 printf '## Summary\n\n'
