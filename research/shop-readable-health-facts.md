@@ -832,6 +832,11 @@ t=80s load={32.49 …}  thermal=2
 responsive throughout and returned to lower levels when the load stopped. A fanless chassis
 reaching Heavy under an all-core load is **the design working**, not a fault.
 
+*(Provenance, for honesty: the load producing this was a concurrent research subagent running
+its own `yes`-loop and `dd | shasum` tests on the same machine, not a test I started. That makes
+the load less controlled but the observation more relevant — it is an ordinary heavy workload,
+not a synthetic one, and the sampling was mine.)*
+
 **The corrected reading of the scale for buying purposes:**
 
 | level | meaning under sustained load |
