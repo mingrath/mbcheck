@@ -800,13 +800,55 @@ typedef enum {
 **On macOS the scale is 0 = Nominal, 1 = Moderate, 2 = Heavy, 3 = Trapping, 4 = Sleeping.**
 (The header must be read on a machine that has CLT; the *runtime* command needs nothing.)
 
-**It moves, and I watched it move.** Early in the session, machine near idle:
-`com.apple.system.thermalpressurelevel 0`. Later, after sustained multi-core load with
-`loadavg` above 10: `com.apple.system.thermalpressurelevel 1`. That is a real 0 → 1 transition
-observed on a fanless M4 Air.
+**It moves, and I watched it move through three levels on a fanless M4 Air:**
+
+| when | `loadavg` | level |
+|---|---|---|
+| near idle, early in session | ~1 | **0** Nominal |
+| sustained multi-core load | ~10 | **1** Moderate |
+| heavy sustained all-core load | 20–33 | **2** Heavy |
 
 **This is the single most valuable finding in area 4** and it is what should replace the
 unreadable fan RPM.
+
+### ⚠️ The correction that matters: level 2 is NORMAL on a fanless Air
+
+An earlier draft of this document proposed *"thermal pressure ≥ 2 → 💰"*. **That threshold is
+wrong and would have flagged every healthy MacBook Air.** Measured on this machine — a
+perfectly healthy M4 Air — under sustained all-core load:
+
+```
+t=10s load={20.34 …}  thermal=2
+t=20s load={23.29 …}  thermal=2
+t=30s load={26.88 …}  thermal=2
+t=40s load={29.17 …}  thermal=2
+t=50s load={30.76 …}  thermal=2
+t=60s load={31.96 …}  thermal=2
+t=70s load={31.33 …}  thermal=2
+t=80s load={32.49 …}  thermal=2
+```
+
+**Level 2 (Heavy) held steady for 80+ seconds and never progressed to 3.** The machine stayed
+responsive throughout and returned to lower levels when the load stopped. A fanless chassis
+reaching Heavy under an all-core load is **the design working**, not a fault.
+
+**The corrected reading of the scale for buying purposes:**
+
+| level | meaning under sustained load |
+|---|---|
+| **0–1** | comfortably within envelope |
+| **2** Heavy | **normal for a fanless Air under all-core load** · on a **Pro** it is worth pairing with "are the fans actually spinning?" |
+| **3** Trapping | the system is taking emergency measures — **abnormal**, 💰 at minimum |
+| **4** Sleeping | thermal shutdown imminent — 🛑 |
+
+⚠️ **Levels 3 and 4 were never observed.** Their severity is taken from Apple's header semantics
+and from what the names mean, **not** from an observed failure. That is the main residual
+uncertainty in area 4, and the guide should not pretend otherwise.
+
+**What this also demonstrates: the plateau is the signal.** A healthy machine climbs to a level
+and *stays there*. A machine whose cooling has degraded should keep climbing. That is a shape,
+not a number, and it is why the script should **sample repeatedly and report the trajectory**
+rather than take a single reading.
 
 ## 4.3 What the README's `yes`-loop actually proves **[measured, 25 s version]**
 
@@ -895,17 +937,49 @@ at the end of the load, and compare wall times. This is chip-agnostic, needs no 
 
 ```
 # repeatable ~3 s single-threaded probe, measured above
-yes | head -n 50000000 > /dev/null
+/usr/bin/time -p sh -c 'yes | head -n 50000000 > /dev/null'
 ```
 
 A machine that is thermally healthy shows a modest, *plateauing* slowdown. A machine with
 degraded cooling shows a large and *continuing* slide.
 
-**Threshold — proposed, and explicitly not yet calibrated:** the ratio of end-probe to
-start-probe wall time is the number to grade on. I do **not** have enough clean data to set the
-boundary, because this machine was contaminated throughout. **This needs one clean measurement
-run on an idle Air and an idle Pro before `check.sh` ships a number** — flagging it as the main
-open item this research did not close.
+### Grade on `user` CPU time, not wall time **[measured]**
+
+The obvious implementation — compare wall-clock times — is the wrong one, and I have a
+measurement that shows why. The same probe, run three times while the machine was at
+`loadavg` 34 from unrelated work:
+
+```
+2.35s user 0.05s system 54% cpu  4.411 total
+2.36s user 0.05s system 56% cpu  4.284 total
+2.32s user 0.05s system 64% cpu  3.683 total
+```
+
+against an earlier baseline of `2.64s user … 3.406 total`.
+
+**Wall time moved by 8–29%. User CPU time did not move at all** (it was in fact slightly lower).
+Wall time absorbed the scheduling contention; user time did not, because time spent waiting for
+a runnable core is not charged to the process.
+
+This is exactly the discrimination the check needs:
+
+- **contention** (background apps, Spotlight indexing, the seller's Dropbox syncing) inflates
+  **wall** time and is *noise*;
+- **clock throttling** inflates **user** time, because the same work occupies the core for more
+  seconds — and that is the *signal*.
+
+**So: `/usr/bin/time -p`, compare the `user` field.** It makes the probe robust on a seller's
+machine that you do not control and cannot quiesce — which is the realistic shop condition.
+
+⚠️ **Flagged honestly: I proved the noise-rejection half, not the signal half.** These runs show
+user time is insensitive to contention. I did **not** produce a throttled machine and watch user
+time rise, because that needs a sustained load on a quiet machine. The mechanism is sound and
+the metric is strictly better than wall time, but **the threshold is uncalibrated.**
+
+**Threshold — proposed, explicitly NOT calibrated:** grade on end-probe ÷ start-probe **user**
+time. I do not have clean enough data to set the boundary, because this machine was contaminated
+throughout by concurrent work. **This needs one clean run on an idle Air and an idle Pro before
+`check.sh` ships a number, and it is the main open item this research did not close.**
 
 ## 4.5 The fanless Air — what replaces "fans audible"
 
@@ -952,20 +1026,22 @@ MacBook Air          # elapsed 192 ms
 | Correct behaviour under load | **Silent.** Chassis becomes hot, especially above the keyboard and on the underside. Sustained performance drops and then **plateaus**. | Fans **audibly spin up** and stay up; chassis warm but not painful. |
 | 📝 note | Warm to the touch — expected, say so explicitly so the buyer does not misread it as a fault | Fans already audible **at idle**, before the load starts |
 | 💰 renegotiate | — | Fan noise that is rattling, grinding or scraping rather than rushing air (fan/bearing is a serviceable part) |
-| 🛑 walk away | **Machine shuts down, hard-freezes, or kernel-panics under load** | Fans **never** spin up at all *and* thermal pressure climbs to ≥ 2 · or shutdown/freeze/panic |
+| 🛑 walk away | **Machine shuts down, hard-freezes, or kernel-panics under load** · or thermal pressure reaches **4 (Sleeping)** | Fans **never** spin up at all *and* pressure keeps climbing · or shutdown/freeze/panic |
 
-**The replacement signal for "fans audible" on an Air is the pair (thermal pressure level,
+**The replacement signal for "fans audible" on an Air is the pair (thermal pressure trajectory,
 did it survive).** Silence carries no information on an Air; *completing the load run without
 shutting down, freezing or panicking* is the actual pass condition, and
 `notifyutil -g com.apple.system.thermalpressurelevel` is the readable half.
 
-**Threshold on the readable half:** thermal pressure reaching **2 (Heavy)** or above during the
-load run → 💰 at minimum, and 🛑 if paired with a shutdown or freeze. Reaching **1 (Moderate)**
-on an Air under sustained load is **normal and should be reported as OK** — that is exactly what
-this fanless M4 Air did.
+**Threshold on the readable half — corrected against measurement (§4.2):** on an Air, reaching
+**0, 1 or 2** under sustained load is **normal and must be reported as OK**; this healthy M4 Air
+sat at **2 (Heavy)** for 80+ seconds without degrading. Only **3 (Trapping)** → 💰 and
+**4 (Sleeping)** → 🛑, and a level that **keeps climbing rather than plateauing** is the shape to
+watch.
 
-**Caveat, stated plainly:** I observed 0 → 1 on this machine but never reached 2, so the
-2 = Heavy boundary is taken from Apple's header semantics, **not** from an observed failure.
+**⚠️ The single most dangerous thing the guide could ship here is a threshold set at level 2.**
+It looks alarming, it is the obvious place to draw the line, and it would tell buyers to walk
+away from healthy Airs.
 
 ## 4.6 Thermal and shutdown history is effectively unreadable **[measured]**
 
@@ -1141,7 +1217,7 @@ is why `log show` works without sudo **only for admin accounts**. Say *"admin, n
 | **past memory exhaustion (survives reboot)** | `ls /Library/Logs/DiagnosticReports/ \| grep -c JetsamEvent` | many, on an 8 GB machine → 💰 |
 | core topology (drives the load test) | `sysctl -n hw.logicalcpu hw.nperflevels hw.perflevel*.name` | never hardcode 8 |
 | Air or Pro | `system_profiler SPHardwareDataType \| awk -F': ' '/Model Name/{print $2}'` | selects the fanless branch |
-| thermal pressure | `notifyutil -g com.apple.system.thermalpressurelevel` | ≥ 2 → 💰 · ≥ 2 + freeze → 🛑 |
+| thermal pressure (sample repeatedly) | `notifyutil -g com.apple.system.thermalpressurelevel` | 0–2 normal · **3 → 💰** · 4 → 🛑 · not plateauing → 💰 |
 | panic history | `ls /Library/Logs/DiagnosticReports/` | repeated panics → 🛑 · unreadable → say so |
 | sleep/wake failures | `pmset -g log \| grep -i failure` | 7 s; failures → 📝 |
 
@@ -1150,8 +1226,8 @@ is why `log show` works without sudo **only for admin accounts**. Say *"admin, n
 - spawn `$(sysctl -n hw.logicalcpu)` × `dd if=/dev/zero bs=1m count=… | shasum -a 256`,
   **never** a hardcoded 8, and **never** anything that writes to the seller's disk;
 - poll `notifyutil -g com.apple.system.thermalpressurelevel` every 15 s (8 ms each, free);
-- run the fixed probe `yes | head -n 50000000 > /dev/null` **before and after** and compare
-  wall times;
+- run the fixed probe `/usr/bin/time -p sh -c 'yes | head -n 50000000 > /dev/null'` **before and
+  after** and compare the **`user`** field, not wall time (§4.4);
 - **on an Air, tell the buyer silence is correct and the chassis will get hot**; the pass
   condition is finishing without shutdown, freeze or panic.
 
