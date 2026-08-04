@@ -852,11 +852,26 @@ rather than take a single reading.
 
 ## 4.3 What the README's `yes`-loop actually proves **[measured, 25 s version]**
 
-The current loop is `for i in {1..8}; do yes > /dev/null & done; sleep 300; killall yes`.
+The current `README.md` §"Step 3 — Stress test the fans (6 min)" ships:
 
-**Defect 1 — the hardcoded 8.** This machine has 10 logical cores; an M1 Air has 8, an M4 Max has
-16. Eight processes under-loads most of the range and is simply the wrong number everywhere
-except by coincidence. The portable replacement is measured and free:
+```bash
+for i in {1..8}; do yes > /dev/null & done; sleep 300; killall yes
+```
+
+with the surrounding text *"This is the whole reason you're buying a Pro instead of an Air"*,
+*"It pins all 8 performance cores for 5 minutes"*, *"open **Activity Monitor** → **CPU** tab"*,
+and under **Walk away if**: *"**Total silence.** Dead or unplugged fans."*
+
+**Defect 0 — it is scoped to a Pro by construction.** *"the whole reason you're buying a Pro
+instead of an Air"* was fine when the README targeted one 16" M1 Pro. Under the redrawn map
+(M1–M5, **Air and Pro**) this entire step has no Air branch at all, and its walk-away rule is
+actively wrong there (§4.5).
+
+**Defect 1 — the hardcoded 8, and the claim about it is false.** *"It pins all 8 performance
+cores"* is not what happens. This M4 Air has **4** performance cores and 6 efficiency cores;
+the M1 Pro the README was written for has 8 P + 2 E; an M4 Max has more. Eight `yes` processes
+pin *eight schedulable threads*, which is not the same as eight P-cores, and the number is wrong
+on nearly every machine in the supported range. The portable replacement is measured and free:
 
 ```
 $ sysctl -n hw.logicalcpu hw.nperflevels
@@ -992,10 +1007,12 @@ $ ioreg -l -w0 | grep -o -i '"[^"]*fan[^"]*"' | sort -u
 (no output)
 ```
 
-**So the README's "total silence = walk away" rule is not merely wrong for Airs — on an Air,
-silence under load is the only correct outcome.** A buyer applying the current rule to any Air
-M1–M5 walks away from a perfectly good machine, every time. This is a live defect in the shipped
-README, not a theoretical one.
+**So the README's rule — verbatim, *"**Total silence.** Dead or unplugged fans — the single most
+expensive failure mode"* — is not merely imprecise for Airs. On an Air, silence under load is
+the only correct outcome.** A buyer applying that rule to any Air M1–M5 walks away from a
+perfectly good machine, every time. The final checklist repeats it (*"Fans audible under load,
+no shutdown"*). **This is a live defect in the shipped README, not a theoretical one**, and it is
+the highest-value single correction this research produced.
 
 **Detecting whether the machine has a fan at all.** The obvious `hw.model` prefix test is
 **broken on modern Macs** — measured:
