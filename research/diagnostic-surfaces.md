@@ -1151,7 +1151,7 @@ AirDropping off the machine. **It is the wrong choice, in both directions.**
 
 ```
 >       Serial Number (system): G5G•••••••
->       Hardware UUID: EFC4902C-••••-••••-••••-••••••••••••
+>       Hardware UUID: UUID-REDACTED-••••-••••-••••-••••••••••••
 >       Provisioning UDID: 00008132-••••••••••••••••
 >       Activation Lock Status: Enabled
 ```
