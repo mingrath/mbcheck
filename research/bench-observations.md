@@ -13,10 +13,10 @@ presented as measured.
 | Model | MacBook Air, `Mac16,13` (M4) |
 | Memory | 16 GB |
 | macOS | 26.5.2 (build 25F84) |
-| Serial | G5GQL2690L |
+| Serial | SERIAL-REDACTED |
 | FileVault | Off |
 | MDM / DEP | `Enrolled via DEP: No` · `MDM enrollment: No` |
-| iCloud | signed in (`mingrath@gmail.com`) |
+| iCloud | signed in (`apple-account-redacted`) |
 | Find My Mac | on (`com.apple.Dataclass.DeviceLocator` present in `MobileMeAccounts`) |
 
 Date: 2026-08-04.
