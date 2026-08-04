@@ -424,6 +424,21 @@ because those are Apple's own absolute scale rather than a curve-derived thresho
 
 ---
 
+## Licence, and one thing to be clear about
+
+MIT — see [`LICENSE`](LICENSE). Use it, change it, redistribute it.
+
+**It comes with no warranty, and that matters more here than in most repositories.** This
+script helps you inspect a machine; it does not certify one. It says plainly what it cannot
+see — most importantly that **nothing can tell you whether a serial sits in a company's Apple
+Business Manager** — and a clean report is not a promise that a purchase is sound. The buying
+decision is yours, and the money is yours.
+
+The Thai prices and market notes were observed on **2026-08-04** and will go stale. The checks
+themselves will not.
+
+---
+
 ## The whole script, to paste by hand
 
 For a seller who will not let you fetch from the internet. This block is generated from
