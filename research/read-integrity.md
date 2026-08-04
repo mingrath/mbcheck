@@ -92,7 +92,7 @@ $ PATH="$D/bin:$PATH" /usr/sbin/system_profiler -detailLevel basic SPHardwareDat
       Model Name: MacBook Air
       Chip: Apple M4
       Memory: 16 GB
-      Serial Number (system): G5GQL2690L
+      Serial Number (system): SERIAL-REDACTED
       Activation Lock Status: Enabled
 ```
 
@@ -100,7 +100,7 @@ And against the exported function:
 
 ```console
 $ ... export -f system_profiler; /usr/sbin/system_profiler ... | grep Serial
-      Serial Number (system): G5GQL2690L
+      Serial Number (system): SERIAL-REDACTED
 ```
 
 Both defeated. A path beginning with `/` is not looked up in `PATH`, and a shell function name
@@ -128,7 +128,7 @@ which strips `DYLD_*` from restricted/platform binaries:
 
 ```console
 $ DYLD_INSERT_LIBRARIES=/nonexistent.dylib /usr/sbin/system_profiler ... | grep Serial
-      Serial Number (system): G5GQL2690L
+      Serial Number (system): SERIAL-REDACTED
 ```
 
 Note the shape of the evidence: a *nonexistent* library was named and the process neither
